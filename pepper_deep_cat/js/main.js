@@ -5,14 +5,13 @@
 $(function(){
     function MyModel() {
         var self = this;
-        self.catServerUrl = ko.observable("ws://192.168.11.16:8080/ws");
+        self.catServerUrl = ko.observable("ws://192.168.11.16:8080/ws_raw");
         self.imageUrl     = ko.observable("http://www.widewallpapers.ru/mod/cats/1280x800/wide-wallpaper-1280x800-007.jpg");
         self.result       = ko.observable("");
         self.resultData   = ko.observable({});
         self.drawImage = function()
         {
             var image = new Image();
-            image.crossOrigin="anonymous";
             image.src = self.imageUrl();
             image.onload = function() {
                 var canvas = $("#canvas")[0];
