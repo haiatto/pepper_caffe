@@ -57,7 +57,7 @@ class ClassifierWsUrl(tornado.websocket.WebSocketHandler):
     def on_message(self, message):
         print message
         input_image = caffe.io.load_image(message)
-        self.write_message(predictImage(input_image))
+        self.write_message(self.predictImage_(input_image))
 
     def predictImage_(self, input_image):
         scoreList  = net.predict([input_image])
@@ -77,13 +77,14 @@ class ClassifierWsUrl(tornado.websocket.WebSocketHandler):
 
 class ClassifierWsRaw(ClassifierWsUrl):
     def on_message(self, message):
-        widht, height, slide = struct.unpack('<HHb', message)
-        input_image = np.fromstring(message, dtype=np.uint8)[12:]
+        widht, height, slide = struct.unpack('<HHb', message[:5])
+        print widht, height, slide
+        input_image = np.fromstring(message, dtype=np.uint8)[5:]
         input_image = input_image.reshape((height,widht,slide))
         input_image = input_image[:, :, :3]
         input_image = input_image.astype(np.float)
         input_image = input_image * (1.0/256.0)
-        self.write_message(predictImage(input_image))
+        self.write_message(self.predictImage_(input_image))
 
 handlers = [
     (r'/css/(.*)',  tornado.web.StaticFileHandler, {'path': os.path.join(os.getcwd(),"css")}),
