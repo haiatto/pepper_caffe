@@ -17,7 +17,7 @@ $(function(){
         self.drawImage = function()
         {
             var image = new Image();
-            image.crossOrigin = "Anonymous";
+            //image.crossOrigin = "Anonymous";
             image.src = self.imageUrl();
             image.onload = function() {
                 var canvas = $("#canvas")[0];
@@ -30,7 +30,36 @@ $(function(){
         self.imageUrl.subscribe(function(){
             self.drawImage();
         });
-        self.classifier   = function()
+        self.classifierUrl   = function()
+        {
+            var ws = new WebSocket(self.catServerUrl()+"/ws_url");
+            ws.onopen = function() {
+                ws.send(self.imageUrl()); 
+            };
+            ws.onmessage = function (evt) {
+                var data = JSON.parse(evt.data);
+                var catCount = 0;
+                $.each(data,function(k,v){
+                    if ( /cat/.exec(v.class))
+                    {
+                        catCount++;
+                    }
+                });
+                var resTxt = "";
+                if(catCount>3){
+                    resTxt = "きっと猫";
+                }else if(catCount>1){
+                    resTxt = "たぶん猫";
+                }else{
+                    resTxt = "猫じゃない！";
+                }
+                self.result(resTxt);
+                self.resultData(data);
+                ws.close();
+                ws = null;
+            };
+        };
+        self.classifierRaw   = function()
         {
             var ws = new WebSocket(self.catServerUrl()+"/ws_raw");
             ws.binaryType = 'arraybuffer';
@@ -71,6 +100,8 @@ $(function(){
                 }
                 self.result(resTxt);
                 self.resultData(data);
+                ws.close();
+                ws = null;
             };
         };
     };
