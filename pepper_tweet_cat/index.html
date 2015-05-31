@@ -1,0 +1,42 @@
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>深層のPepper猫とつぶやく</title>
+  <link type="text/css" rel="stylesheet" href="css/styles.css" />
+  <script type='text/javascript' src='libs/jquery-2.1.3.min.js'></script>
+  <script type='text/javascript' src='libs/knockout-3.2.0.debug.js'></script>
+  <script type='text/javascript' src="libs/qimessaging/1.0/qimessaging.js"></script>
+  <script type='text/javascript' src="js/main.js"></script>
+</head>
+<body>
+    <div>
+      <h1>深層のPepper猫とつぶやく</h1>
+    </div><!-- /header -->
+    <div>
+        <div>
+          IP:
+          <input class="ip" type="number" data-bind="value: $root.ipX000" />
+          <input class="ip" type="number" data-bind="value: $root.ip0X00" />
+          <input class="ip" type="number" data-bind="value: $root.ip00X0" />
+          <input class="ip" type="number" data-bind="value: $root.ip000X" />
+        </div>
+        <div>
+          猫判定サーバーURL:
+          <input class="catServerUrl" type="text" data-bind="value: $root.catServerUrlObsv" />
+        </div>
+        <div>
+          <button data-bind="click: $root.connect">接続！</button>
+          <button data-bind="click: $root.disconnect">切断！</button>
+        </div>
+        <div data-bind="text:$root.nowState"></div>
+        <div data-bind="text:$root.result"></div>
+    </div>
+
+    <div class="camCanvas">
+      <div data-bind="foreach:$root.canvasLayers">
+        <canvas id="$data" class="camCanvasLayer" width="400" height="300"></canvas>
+      </div>
+    </div>
+
+</body>
+</html>

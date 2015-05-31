@@ -1,0 +1,43 @@
+.noSelect{
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    -o-user-select: none;
+}
+
+.ip{
+    display:inline-block;
+    width:20%;
+}
+
+.camCanvas{
+  display: block;
+  top:  0px;
+  left: 0px;
+  border-style:double;
+  border: 1px solid #999;
+  width:400px;
+  height:300px;
+}
+.camCanvasLayer{
+  position:absolute;
+}
+
+
+.volume{
+ }
+.volume > .value{
+    display:inline-block;
+    width: 3em;
+    border-style: solid;
+    border-radius: 0.5em;
+    border-width: 1px;
+    padding: 0.1em;
+    font-size: 1.3em;
+    text-align: center;
+}
+.volume >.ui-btn{
+    display:inline-block;
+    width:25%;
+ }
