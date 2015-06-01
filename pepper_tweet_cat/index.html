@@ -14,7 +14,7 @@
     </div><!-- /header -->
     <div>
         <div>
-          IP:
+          PepprのIP:
           <input class="ip" type="number" data-bind="value: $root.ipX000" />
           <input class="ip" type="number" data-bind="value: $root.ip0X00" />
           <input class="ip" type="number" data-bind="value: $root.ip00X0" />
@@ -28,13 +28,23 @@
           <button data-bind="click: $root.connect">接続！</button>
           <button data-bind="click: $root.disconnect">切断！</button>
         </div>
+        <div>
+          Pepperない人は…:
+          <button data-bind="click: $root.startWebcam">Webカメラでお試しする</button>
+        </div>
         <div data-bind="text:$root.nowState"></div>
         <div data-bind="text:$root.result"></div>
     </div>
 
     <div class="camCanvas">
       <div data-bind="foreach:$root.canvasLayers">
-        <canvas id="$data" class="camCanvasLayer" width="400" height="300"></canvas>
+        <canvas class="camCanvasLayer" width="400" height="300"></canvas>
+      </div>
+    </div>
+
+    <div class="catImageList">
+      <div data-bind="foreach:$root.catImageList">
+        <canvas class="imageListOne" width="10" height="10" data-bind="attr:{width:$data.w,height:$data.h},imageListDraw:$data"></canvas>
       </div>
     </div>
 

@@ -91,12 +91,48 @@ function PepperCamera(alVideoDevice,option) {
     self.subscribe();
 }
 
+function ImageList()
+{
+    var self = this;
 
-function Main() {
+    self.list = ko.observableArray();
+
+    ko.bindingHandlers.imageListDraw = {
+        init: function(element, valueAccessor) {
+            // 画像をcanvasに
+            var tgtCanvas = element;
+            var image     = ko.utils.unwrapObservable(valueAccessor());
+
+            var c  = tgtCanvas.getContext('2d');
+            var cw = tgtCanvas.width;
+            var ch = tgtCanvas.height;
+            c.clearRect(0, 0, cw, ch);
+            var imageData = c.createImageData(image.w, image.h);
+            var pixels = imageData.data;
+            for (var i=0; i < pixels.length/4; i++) {
+                pixels[i*4+0] = image.pixels[i*4+0];
+                pixels[i*4+1] = image.pixels[i*4+1];
+                pixels[i*4+2] = image.pixels[i*4+2];
+                pixels[i*4+3] = 255;
+            }
+            c.putImageData(imageData, 0, 0);
+        },
+        update: function(element, valueAccessor) {
+        }
+    };
+    self.pushImage = function(data)
+    {
+        if(data.image){
+            self.list.push(data.image);
+        }
+    }
+}
+
+function Main(imageList) {
     var self = this;
     var qims = null;
 
-    self.connect = function(ip,catServerUrl,obsvState,obsvResult){    
+    self.connect = function(ip,catServerUrl,obsvState,obsvResult){
         self.catServerUrl = catServerUrl;
         if(qims){
             if(obsvState()!="接続中にゃん(@.@)"){
@@ -115,7 +151,7 @@ function Main() {
                 qims.service("ALTextToSpeech")
                 .done(function (tts) {
                     tts.say("せつぞく、にゃん");    
-                    self.tweetLoop()
+                    self.tweetLoop(obsvResult)
                     .fail(function(err){
                         obsvResult("エラーにゃん " + err);
                     });
@@ -128,7 +164,7 @@ function Main() {
     };
     self.disconnect = function(){    
     };
-    self.tweetLoop = function(){
+    self.tweetLoop = function(obsvResult){
         if(!qims){
             return;
         }
@@ -223,7 +259,7 @@ function Main() {
                   var maxY=0;
                   var data = {pixels:null,w:0,h:0};
                   if(img0.pixels && img1.pixels){
-                      var checkSize   = 8;
+                      var checkSize   = 4;//8;
                       var w = Math.min(img0.w,img1.w);
                       var h = Math.min(img0.h,img1.h);
                       var bh = Math.floor(h/checkSize);
@@ -240,7 +276,7 @@ function Main() {
                                       sum += Math.abs(img0.pixels[p0+2] - img1.pixels[p1+2]);
                                   }
                               }
-                              if(sum > checkSize*checkSize * 100){
+                              if(sum > checkSize*checkSize * 130){
                                   minX = Math.min(minX, bx*checkSize);
                                   minY = Math.min(minY, by*checkSize);
                                   maxX = Math.max(maxX, bx*checkSize+checkSize);
@@ -249,10 +285,10 @@ function Main() {
                           }                      
                       }
                       if(minX < maxX){
-                          minX = Math.max(minX-5, 0);
-                          minY = Math.max(minY-5, 0);
-                          maxX = Math.min(maxX+5, img1.w);
-                          maxY = Math.min(maxY+5, img1.h);
+                          minX = Math.max(minX-10, 0);
+                          minY = Math.max(minY-10, 0);
+                          maxX = Math.min(maxX+10, img1.w);
+                          maxY = Math.min(maxY+10, img1.h);
                           var w = maxX - minX;
                           var h = maxY - minY;
                           var pixels = new Uint8Array(w*h*4);
@@ -282,9 +318,10 @@ function Main() {
         var makeDfdFuncCaffeDeepCat = function(catServerUrl, imageName0){
             return function(){
                 var img0 = genralDataTable[imageName0]&&genralDataTable[imageName0].image;
-                if(!img0){
+                if(!img0 || !img0.pixels){
                     return;
                 }
+                obsvResult("判定中(@O@)");
                 var dfd = $.Deferred();
                 var ws = new WebSocket(catServerUrl+"/ws_raw");
                 ws.binaryType = 'arraybuffer';
@@ -322,12 +359,13 @@ function Main() {
                         resTxt = "猫じゃない！";
                         resFlag = false;
                     }
+                    obsvResult(resTxt+"(@_@)");
                     ws.close();
                     ws = null;
                     dfd.resolve({text:resTxt, bool:resFlag, deepCatData:data});
                 };
                 ws.onerror = function(){
-                    dfd.reject();
+                    dfd.reject("サーバー接続できない？");
                 };
                 return dfd;
             };
@@ -343,7 +381,26 @@ function Main() {
                     }
                 });
             };
-        };        
+        };
+        var makeDfdFuncTweetText = function(name0){
+            return function(){
+                var data = genralDataTable[name0];
+                if(data.text){
+                    return qims.service("ALTextToSpeech")
+                    .then(function (tts) {
+                        tts.say(data.text);    
+                    });
+                }
+            };
+        };
+        var makeDfdFuncPushImage = function(name0){
+            return function(){
+                var data = genralDataTable[name0];
+                if(data.image && data.image.pixels){
+                    imageList.pushImage(data);
+                }
+            };
+        };
         var mainLoopDfdFunc = function(){
             var dfd=$.Deferred();
             dfd.resolve();
@@ -359,11 +416,13 @@ function Main() {
             .then(makeDfdFuncSetCapImg("movedImage"))
             .then(makeDfdFuncDrawImg(canvasLayer2, 0,0, 255))
             .then(makeDfdFuncCaffeDeepCat(self.catServerUrl,"movedImage"))
-            .then(makeDfdFuncSetGeneral("movedImage"))
+            .then(makeDfdFuncSetGeneral("deepCatRes"))
+            //.then( makeDfdFuncPushImage("movedImage"))
             .then(makeDfdFuncIf(
-                makeDfdFuncGetGeneral("movedImage"),
+                makeDfdFuncGetGeneral("deepCatRes"),
                 function(){
-                    return makeDfdFuncTweetText("movedImage")()
+                    return makeDfdFuncTweetText("deepCatRes")()
+                    .then( makeDfdFuncPushImage("movedImage"))
                     ;
                 }
             ))
@@ -384,7 +443,8 @@ $(function(){
     function MyModel() {
         var self = this;
 
-        var main = new Main();
+        var imageList = new ImageList();
+        var main = new Main(imageList);
 
         // IP入力部分
         self.ipX000 = ko.observable(192);
@@ -413,6 +473,10 @@ $(function(){
                 localStorage.setItem("pepper_ip",JSON.stringify(pepper_ip));
             }
         }
+
+        //
+        self.catImageList = imageList.list;
+
         //
         self.catServerUrlObsv = ko.observable("ws://192.168.11.16:8080");
         if(localStorage){
