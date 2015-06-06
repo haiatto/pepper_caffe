@@ -218,6 +218,8 @@ function Main(imageList) {
     var qims = null;
     var webcamMode = false;
 
+    self.obsvCaffeData = ko.observable();
+
     self.connect = function(ip,catServerUrl,obsvState,obsvResult){
         webcamMode = false;
         self.catServerUrl = catServerUrl;
@@ -232,6 +234,7 @@ function Main(imageList) {
             }else{
                 qims = new QiSession(ip);
             }
+            obsvState("接続してるにゃん(@=@)");
             qims.socket()
             .on('connect', function (aa) {
                 obsvState("接続中にゃん(@.@)");
@@ -246,7 +249,11 @@ function Main(imageList) {
             })
             .on('disconnect', function (aa) {
               obsvState("切断にゃん(@x@)");
-            });
+            })
+            .on('error', function (aa) {
+              obsvState("しっぱいにゃん(@x@)");
+            })
+            ;
         }
     };
     self.disconnect = function(){    
@@ -512,6 +519,19 @@ function Main(imageList) {
                 }
             };
         };
+        var makeDfdFuncDispCaffeData = function(name0){
+            return function(){
+                var data = genralDataTable[name0];
+                if(data && data.deepCatData){
+                    var txt="";
+                    $.each(data.deepCatData,function(k,v){
+                        txt += k + "."   + v.class + "  ";
+                        txt += "かも？可能性" + v.score + "％<br>";
+                    });
+                    self.obsvCaffeData(txt);
+                }
+            };
+        };
         var makeDfdFuncPushImage = function(name0){
             return function(){
                 var data = genralDataTable[name0];
@@ -539,6 +559,7 @@ function Main(imageList) {
                 .then(makeDfdFuncDrawImg(canvasLayer2, 0,0, 255))
                 .then(makeDfdFuncCaffeDeepCat(self.catServerUrl,"movedImage"))
                 .then(makeDfdFuncSetGeneral("deepCatRes"))
+                .then(makeDfdFuncDispCaffeData("deepCatRes"))
                 //.then( makeDfdFuncPushImage("movedImage"))
                 .then(makeDfdFuncIf(
                     makeDfdFuncGetGeneral("deepCatRes"),
@@ -576,11 +597,13 @@ function Main(imageList) {
                 .then(makeDfdFuncDrawImg(canvasLayer2, 0,0, 255))
                 .then(makeDfdFuncCaffeDeepCat(self.catServerUrl,"movedImage"))
                 .then(makeDfdFuncSetGeneral("deepCatRes"))
+                .then(makeDfdFuncDispCaffeData("deepCatRes"))
                 //.then( makeDfdFuncPushImage("movedImage"))
                 .then(makeDfdFuncIf(
                     makeDfdFuncGetGeneral("deepCatRes"),
                     function(){
-                        return makeDfdFuncPushImage("movedImage")();
+                        return makeDfdFuncPushImage("movedImage")()
+                        ;
                     }
                 ))
                 .then(mainLoopDfdFunc)
@@ -600,23 +623,23 @@ $(function(){
         var imageList = new ImageList();
         var main = new Main(imageList);
 
-        // IP入力部分
-        self.ipX000 = ko.observable(192);
-        self.ip0X00 = ko.observable(168);
-        self.ip00X0 = ko.observable(1);
-        self.ip000X = ko.observable(2);
+        self.caffeData = main.obsvCaffeData;
 
-        var pepper_ip;
+        // IP入力部分
+        var pepper_ip = {
+            ip:[192,168,1,2,],
+        };
         if(localStorage){
-            pepper_ip = JSON.parse(localStorage.getItem("pepper_ip"));
+            var pepper_ip_local = JSON.parse(localStorage.getItem("pepper_ip"));
+            if(pepper_ip_local){
+                pepper_ip = pepper_ip_local;
+            }
         }
-        if(pepper_ip){
-            self.ipX000( pepper_ip.ip[0] );
-            self.ip0X00( pepper_ip.ip[1] );
-            self.ip00X0( pepper_ip.ip[2] );
-            self.ip000X( pepper_ip.ip[3] );
-        }
-        else{
+        self.ipX000 = ko.observable(pepper_ip.ip[0]);
+        self.ip0X00 = ko.observable(pepper_ip.ip[1]);
+        self.ip00X0 = ko.observable(pepper_ip.ip[2]);
+        self.ip000X = ko.observable(pepper_ip.ip[3]);
+        var subscribeIp = function(){
             pepper_ip = {
                 ip:[self.ipX000(),
                     self.ip0X00(),
@@ -626,7 +649,11 @@ $(function(){
             if(localStorage){
                 localStorage.setItem("pepper_ip",JSON.stringify(pepper_ip));
             }
-        }
+        };
+        self.ipX000.subscribe(subscribeIp);
+        self.ip0X00.subscribe(subscribeIp);
+        self.ip00X0.subscribe(subscribeIp);
+        self.ip000X.subscribe(subscribeIp);
 
         //
         self.catImageList = imageList.list;
@@ -647,7 +674,6 @@ $(function(){
         self.result   = ko.observable("");
         self.connect = function() 
         {
-            var pepper_ip = JSON.parse(localStorage.getItem("pepper_ip"));
             var ip = 
             pepper_ip.ip[0] + "." +
             pepper_ip.ip[1] + "." +
