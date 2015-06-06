@@ -91,6 +91,91 @@ function PepperCamera(alVideoDevice,option) {
     self.subscribe();
 }
 
+//
+
+navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia ;
+window.URL = window.URL || window.webkitURL ;
+
+function WebCamera(option) {
+    var self = this;
+
+    var mediaStream;
+    var video = $('video')[0];
+
+    var cameraData = [];
+    var cameraIdx  = 0;
+    MediaStreamTrack.getSources(function(data){
+        for( var i = 0 ; i < data.length ; i ++ ){
+          if( data[i].kind == "video" ){
+            cameraData.push(data[i]);
+          }
+        }
+        if( cameraData.length == 0 ){
+          alert("カメラが見つかりません");
+          return;
+        }
+        self.switchCamera();
+    });
+
+    self.switchCamera = function()
+    {
+        if(mediaStream){
+            mediaStream.stop(); 
+        }  
+        navigator.getUserMedia(
+            {
+                video: {
+                  optional: [{sourceId: cameraData[cameraIdx].id }] //カメラIDを直接指定する
+                },
+                audio: false
+            },
+            function(stream) {
+                mediaStream = stream;
+                video.src = URL.createObjectURL(stream);
+                video.play();
+            },
+            function(error) {
+                console.error(error);
+            }
+        );
+        cameraIdx++;
+        if( cameraIdx >= cameraData.length ){
+          cameraIdx = 0;
+        }
+    };
+
+    self.captureImage = function(callback)
+    {
+        var bOk=false;
+        if(mediaStream)
+        {
+            var buffer        = $('.webcamCanvasLayer')[0];
+            var bufferContext = buffer.getContext('2d');
+
+            var width  = video.videoWidth;
+            var height = video.videoHeight;
+            if (width != 0 || height != 0) {
+                buffer.width  = width;
+                buffer.height = height;
+                bufferContext.drawImage(video, 0, 0);
+
+                var img = bufferContext.getImageData(0, 0, width, height); // カメラ画像のデータ
+
+                callback(width, height, img.data);
+                bOk = true;
+            }
+        }
+        if(!bOk)
+        {
+            var width  = 320;
+            var height = 240;
+            var pixels = new Uint8Array(width*height*4);
+            callback(width, height, pixels);
+        }
+    };			
+}
+
+
 function ImageList()
 {
     var self = this;
@@ -131,8 +216,10 @@ function ImageList()
 function Main(imageList) {
     var self = this;
     var qims = null;
+    var webcamMode = false;
 
     self.connect = function(ip,catServerUrl,obsvState,obsvResult){
+        webcamMode = false;
         self.catServerUrl = catServerUrl;
         if(qims){
             if(obsvState()!="接続中にゃん(@.@)"){
@@ -164,10 +251,21 @@ function Main(imageList) {
     };
     self.disconnect = function(){    
     };
-    self.tweetLoop = function(obsvResult){
-        if(!qims){
-            return;
+
+    var webCamIns;
+    self.startWebcam = function(catServerUrl,obsvState,obsvResult){
+        self.catServerUrl = catServerUrl;
+        obsvState("WebCam接続中にゃん(@.@)");
+        webcamMode = true;
+        self.tweetLoop( obsvResult );
+    };
+    self.webCamSwitch = function(){
+        if(webCamIns){
+            webCamIns.switchCamera();  
         }
+    };
+
+    self.tweetLoop = function(obsvResult){
         var pcam;
         var canvasLayer0 = $(".camCanvasLayer")[0];
         var canvasLayer1 = $(".camCanvasLayer")[1];
@@ -176,14 +274,35 @@ function Main(imageList) {
 
         var capImgDfdFunc = function(){//イメージをキャプチャして返えすdfd関数です
             var dfd = $.Deferred();
-            pcam.captureImage(function(w,h,data,camId,l,t,r,b){
+            pcam.captureImage(function(w,h,data){
                 // 受信したRAWデータをcanvasに                
-                var pixels = new Uint8Array(w*h*4);
-                for (var i=0; i < pixels.length/4; i++) {
-                    pixels[i*4+0] = data[i*3+0];
-                    pixels[i*4+1] = data[i*3+1];
-                    pixels[i*4+2] = data[i*3+2];
-                    pixels[i*4+3] = 255;
+                var pixels;
+                if(w*h*3==data.length){
+                    pixels = new Uint8Array(w*h*4);
+                    for (var i=0; i < pixels.length/4; i++) {
+                        pixels[i*4+0] = data[i*3+0];
+                        pixels[i*4+1] = data[i*3+1];
+                        pixels[i*4+2] = data[i*3+2];
+                        pixels[i*4+3] = 255;
+                    }
+                }
+                else{
+                    var orgW = w;
+                    var orgH = h;
+                    w = Math.min(320,w);
+                    h = Math.min(240,h);
+                    var ox = Math.floor((orgW>w)?(orgW-w)/2:0);
+                    var oy = Math.floor((orgH>h)?(orgH-h)/2:0);
+
+                    pixels = new Uint8Array(w*h*4);
+                    for(var y=0; y < h; y++){
+                        for(var x=0; x < w; x++){
+                            pixels[(y*w+x)*4+0] = data[((y+oy)*orgW+x+ox)*4+0];
+                            pixels[(y*w+x)*4+1] = data[((y+oy)*orgW+x+ox)*4+1];
+                            pixels[(y*w+x)*4+2] = data[((y+oy)*orgW+x+ox)*4+2];
+                            pixels[(y*w+x)*4+3] = 255;
+                        }
+                    }
                 }
                 var image={};
                 image.pixels = pixels;
@@ -196,13 +315,13 @@ function Main(imageList) {
         var makeDfdFuncDrawImg = function(tgtCanvas,x,y,alpha){//イメージをキャンバスに描くdfd関数を作ります
             return function(srcImage){
                 // 画像をcanvasに
-                if(!srcImage || !srcImage.pixels){
-                    return;
-                }
                 var c = tgtCanvas.getContext('2d');
                 var cw = tgtCanvas.width;
                 var ch = tgtCanvas.height;
                 c.clearRect(0, 0, cw, ch);
+                if(!srcImage || !srcImage.pixels){
+                    return;
+                }
                 var imageData = c.createImageData(srcImage.w, srcImage.h);
                 var pixels = imageData.data;
                 for (var i=0; i < pixels.length/4; i++) {
@@ -401,41 +520,76 @@ function Main(imageList) {
                 }
             };
         };
-        var mainLoopDfdFunc = function(){
-            var dfd=$.Deferred();
-            dfd.resolve();
-            return dfd
-            .then(capImgDfdFunc)
-            .then(makeDfdFuncSetCapImg("image0"))
-            .then(makeDfdFuncDrawImg(canvasLayer0, 0,0, 255))
-            .then(makeDfdFuncWaitTime(0.1*1000))
-            .then(capImgDfdFunc)
-            .then(makeDfdFuncSetCapImg("image1"))
-            .then(makeDfdFuncDrawImg(canvasLayer1, 0,0, 128))
-            .then(makeDfdFuncDiffClipImage("image0","image1"))
-            .then(makeDfdFuncSetCapImg("movedImage"))
-            .then(makeDfdFuncDrawImg(canvasLayer2, 0,0, 255))
-            .then(makeDfdFuncCaffeDeepCat(self.catServerUrl,"movedImage"))
-            .then(makeDfdFuncSetGeneral("deepCatRes"))
-            //.then( makeDfdFuncPushImage("movedImage"))
-            .then(makeDfdFuncIf(
-                makeDfdFuncGetGeneral("deepCatRes"),
-                function(){
-                    return makeDfdFuncTweetText("deepCatRes")()
-                    .then( makeDfdFuncPushImage("movedImage"))
-                    ;
-                }
-            ))
-            .then(mainLoopDfdFunc)
-            ;
-        };
 
-        return qims.service('ALVideoDevice')
-        .then(function(alVideoDevice){
-            pcam = new PepperCamera(alVideoDevice,{name:"pepper_tweet_top_cam",cam:0});
-            return pcam.subscribe();
-        })
-        .then(mainLoopDfdFunc);
+        if(qims)
+        {
+            var mainLoopDfdFunc = function(){
+                var dfd=$.Deferred();
+                dfd.resolve();
+                return dfd
+                .then(capImgDfdFunc)
+                .then(makeDfdFuncSetCapImg("image0"))
+                .then(makeDfdFuncDrawImg(canvasLayer0, 0,0, 255))
+                .then(makeDfdFuncWaitTime(0.1*1000))
+                .then(capImgDfdFunc)
+                .then(makeDfdFuncSetCapImg("image1"))
+                .then(makeDfdFuncDrawImg(canvasLayer1, 0,0, 128))
+                .then(makeDfdFuncDiffClipImage("image0","image1"))
+                .then(makeDfdFuncSetCapImg("movedImage"))
+                .then(makeDfdFuncDrawImg(canvasLayer2, 0,0, 255))
+                .then(makeDfdFuncCaffeDeepCat(self.catServerUrl,"movedImage"))
+                .then(makeDfdFuncSetGeneral("deepCatRes"))
+                //.then( makeDfdFuncPushImage("movedImage"))
+                .then(makeDfdFuncIf(
+                    makeDfdFuncGetGeneral("deepCatRes"),
+                    function(){
+                        return makeDfdFuncTweetText("deepCatRes")()
+                        .then( makeDfdFuncPushImage("movedImage"))
+                        ;
+                    }
+                ))
+                .then(mainLoopDfdFunc)
+                ;
+            };
+            return qims.service('ALVideoDevice')
+            .then(function(alVideoDevice){
+                pcam = new PepperCamera(alVideoDevice,{name:"pepper_tweet_top_cam",cam:0});
+                return pcam.subscribe();
+            })
+            .then(mainLoopDfdFunc);
+        }
+        if(webcamMode)
+        {
+            var mainLoopDfdFunc = function(){
+                var dfd=$.Deferred();
+                dfd.resolve();
+                return dfd
+                .then(capImgDfdFunc)
+                .then(makeDfdFuncSetCapImg("image0"))
+                .then(makeDfdFuncDrawImg(canvasLayer0, 0,0, 255))
+                .then(makeDfdFuncWaitTime(0.1*1000))
+                .then(capImgDfdFunc)
+                .then(makeDfdFuncSetCapImg("image1"))
+                .then(makeDfdFuncDrawImg(canvasLayer1, 0,0, 128))
+                .then(makeDfdFuncDiffClipImage("image0","image1"))
+                .then(makeDfdFuncSetCapImg("movedImage"))
+                .then(makeDfdFuncDrawImg(canvasLayer2, 0,0, 255))
+                .then(makeDfdFuncCaffeDeepCat(self.catServerUrl,"movedImage"))
+                .then(makeDfdFuncSetGeneral("deepCatRes"))
+                //.then( makeDfdFuncPushImage("movedImage"))
+                .then(makeDfdFuncIf(
+                    makeDfdFuncGetGeneral("deepCatRes"),
+                    function(){
+                        return makeDfdFuncPushImage("movedImage")();
+                    }
+                ))
+                .then(mainLoopDfdFunc)
+                ;
+            };
+            pcam = new WebCamera({});
+            webCamIns = pcam;
+            return mainLoopDfdFunc();
+        }
     };
 }
 
@@ -505,6 +659,15 @@ $(function(){
         self.disconnect = function()
         {
             main.disconnect();
+        };
+        self.startWebcam = function()
+        {
+            var catServerUrl = self.catServerUrlObsv();
+            main.startWebcam(catServerUrl, self.nowState, self.result);
+        };
+        self.webCamSwitch = function()
+        {
+            main.webCamSwitch();
         };
 
         //

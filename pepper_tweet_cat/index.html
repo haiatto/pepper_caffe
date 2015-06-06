@@ -31,6 +31,7 @@
         <div>
           Pepperない人は…:
           <button data-bind="click: $root.startWebcam">Webカメラでお試しする</button>
+          <button data-bind="click: $root.webCamSwitch">Webカメラ切り替え</button>
         </div>
         <div data-bind="text:$root.nowState"></div>
         <div data-bind="text:$root.result"></div>
@@ -41,6 +42,9 @@
         <canvas class="camCanvasLayer" width="400" height="300"></canvas>
       </div>
     </div>
+    
+    <video class="webcamVideo" id="video"></video>
+    <canvas class="webcamCanvasLayer" width="1" height="1"></canvas>
 
     <div class="catImageList">
       <div data-bind="foreach:$root.catImageList">
